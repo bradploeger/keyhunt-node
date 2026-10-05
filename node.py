@@ -12,7 +12,7 @@ As a library:
     blk = node.request_block()
     ... run the search over blk["prefix"] ...
     node.complete_block(blk["block_idx"], seconds=812.4, keys_checked=1<<40)
-    node.report_match(privkey_hex, pubkey_hex, block_idx=blk["block_idx"])
+    node.report_match(sealed_privkey_hex, pubkey_hex, block_idx=blk["block_idx"])
 
 As a CLI, mainly for testing and ops:
 
@@ -98,9 +98,13 @@ class Node:
                           {"block_idx": block_idx, "seconds": seconds,
                            "keys_checked": keys_checked})
 
-    def report_match(self, privkey_hex, pubkey_hex, block_idx=-1):
+    def report_match(self, sealed_hex, pubkey_hex, block_idx=-1):
+        """Report a found key. The private key is a sealed box (hex) produced by
+        keyhunt-gpu and encrypted to the server's X25519 key; the node forwards
+        it without ever seeing the key in the clear. The server opens and
+        re-verifies it."""
         return self._call("/v1/match", "match",
-                          {"privkey": privkey_hex, "pubkey": pubkey_hex,
+                          {"privkey_sealed": sealed_hex, "pubkey": pubkey_hex,
                            "block_idx": block_idx})
 
     def stats(self):
@@ -131,7 +135,7 @@ def main():
     c.add_argument("seconds", type=float)
     c.add_argument("--keys", type=int, default=0)
     m = sub.add_parser("match")
-    m.add_argument("privkey")
+    m.add_argument("sealed", help="sealed private-key blob (hex) from keyhunt-gpu")
     m.add_argument("pubkey")
     m.add_argument("--block-idx", type=int, default=-1)
     sub.add_parser("stats")
@@ -153,7 +157,7 @@ def main():
     elif a.cmd == "complete":
         print(json.dumps(node.complete_block(a.block_idx, a.seconds, a.keys), indent=2))
     elif a.cmd == "match":
-        print(json.dumps(node.report_match(a.privkey, a.pubkey, a.block_idx), indent=2))
+        print(json.dumps(node.report_match(a.sealed, a.pubkey, a.block_idx), indent=2))
     elif a.cmd == "stats":
         print(json.dumps(node.stats(), indent=2))
 

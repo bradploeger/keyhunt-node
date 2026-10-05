@@ -20,16 +20,17 @@ while True:
     subprocess.run(["../keyhunt-gpu/keyhunt-gpu", "--prefix", b["prefix"],
                         "--targets", "targets.txt", "--blocks", "512", "--out", "found.txt"], check=True)
     n.complete_block(b["block_idx"], seconds=time.time() - t0, keys_checked=1 << 40)
-    pub_hex = ""
-    priv_hex = ""
+    # keyhunt-gpu writes lines of the form: pubkey=<66 hex> sealed=<hex blob>
+    # The private key is already sealed to the server's X25519 key; the node
+    # forwards the blob and never sees the key in the clear.
     for line in open("found.txt"):
-        # parse privkey/pubkey from the search tool's output, then report:
-        if "pubkey=" in line:
-            pos = line.find("pubkey=")+7
-            pub_hex = line[pos:pos+66]
-        if "privkey=" in line:
-            pos = line.find("privkey=")+8
-            priv_hex = line[pos:pos+64]
-    if pub_hex != "" and priv_hex != "":
-        n.report_match(priv_hex.strip(), pub_hex.strip(), block_idx=b["block_idx"])
+        pub_hex = ""
+        sealed_hex = ""
+        for tok in line.split():
+            if tok.startswith("pubkey="):
+                pub_hex = tok[len("pubkey="):]
+            elif tok.startswith("sealed="):
+                sealed_hex = tok[len("sealed="):]
+        if pub_hex and sealed_hex:
+            n.report_match(sealed_hex, pub_hex, block_idx=b["block_idx"])
     open("found.txt", "w").close()

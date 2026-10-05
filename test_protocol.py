@@ -97,6 +97,29 @@ def main():
     except P.ProtocolError:
         check("forged signature rejected", True)
 
+    print("\n[sealed box: seal_secret / open_sealed]")
+    import os as _os
+    key = _os.urandom(32)
+    sealed = P.seal_secret(key, srv_pub["x25519"])
+    check("sealed blob round-trips", P.open_sealed(sealed, srv_enc, srv_pub["x25519"]) == key)
+    check("recipient public key can be derived", P.open_sealed(sealed, srv_enc) == key)
+
+    # a blob sealed to the server does not open with the node's secret
+    try:
+        P.open_sealed(sealed, node_enc, node_pub["x25519"])
+        check("wrong recipient rejected", False)
+    except P.ProtocolError:
+        check("wrong recipient rejected", True)
+
+    # tampering fails the AEAD tag
+    tampered = bytearray(bytes.fromhex(sealed))
+    tampered[-1] ^= 1
+    try:
+        P.open_sealed(bytes(tampered).hex(), srv_enc, srv_pub["x25519"])
+        check("tampered blob rejected", False)
+    except P.ProtocolError:
+        check("tampered blob rejected", True)
+
     print("\n" + ("ALL NODE TESTS PASSED" if not FAILS
                   else "FAILURES: " + ", ".join(FAILS)))
     return 1 if FAILS else 0

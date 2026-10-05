@@ -16,6 +16,11 @@ HKDF-SHA256 → ChaCha20-Poly1305 and Ed25519-signed; every reply is verified an
 decrypted the same way. The node pins the server's key from `server.pub`, so a
 man in the middle cannot answer for it. No passwords or tokens are used anywhere.
 
+A **found private key is never seen in the clear by the node**: keyhunt-gpu
+seals it to the server's X25519 key (a one-shot sealed box, same `protocol.py`
+primitives), and the node only forwards that ciphertext. The server opens it
+with its X25519 secret and re-verifies the key.
+
 ## Files
 
 ```
@@ -70,15 +75,18 @@ while True:
                     "--targets", "targets.txt", "--out", "found.txt"], check=True)
     n.complete_block(b["block_idx"], seconds=time.time() - t0, keys_checked=1 << 40)
     for line in open("found.txt"):
-        # parse privkey/pubkey from the search tool's output, then:
-        # n.report_match(priv_hex, pub_hex, block_idx=b["block_idx"])
-        pass
+        # keyhunt-gpu writes:  pubkey=<hex> sealed=<hex>
+        # the sealed blob is the private key encrypted to the server; forward it.
+        toks = dict(t.split("=", 1) for t in line.split() if "=" in t)
+        if toks.get("pubkey") and toks.get("sealed"):
+            n.report_match(toks["sealed"], toks["pubkey"], block_idx=b["block_idx"])
     open("found.txt", "w").close()
 ```
 
-Parsing `found.txt` into `(privkey, pubkey)` pairs is the one piece of glue that
+Parsing `found.txt` into `(sealed, pubkey)` pairs is the one piece of glue that
 depends on how you run the search binary; wire it to `keyhunt-gpu`'s output
-format. The server re-verifies every match, so a malformed report is rejected
+format. The private key stays sealed end to end — the server opens it with its
+X25519 secret and re-verifies every match, so a malformed report is rejected
 rather than trusted.
 
 ## CLI reference
@@ -91,8 +99,8 @@ node.py --key KEY --server-info SERVER_PUB --url URL <command>
   request                          lease a block
   complete BLOCK_IDX SECONDS       report a completed block
            [--keys N]
-  match PRIVKEY PUBKEY             report a found key (both hex)
-        [--block-idx N]
+  match SEALED PUBKEY              report a found key: SEALED is the sealed
+        [--block-idx N]              private-key blob from keyhunt-gpu, PUBKEY hex
   stats                            show fleet stats
 ```
 
