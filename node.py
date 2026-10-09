@@ -93,10 +93,10 @@ class Node:
     def request_block(self):
         return self._call("/v1/block/request", "block_request")
 
-    def complete_block(self, block_idx, seconds, keys_checked=0):
+    def complete_block(self, block_idx, seconds, p_hash, proof, keys_checked=0):
         return self._call("/v1/block/complete", "block_complete",
                           {"block_idx": block_idx, "seconds": seconds,
-                           "keys_checked": keys_checked})
+                           "keys_checked": keys_checked, "p_hash": p_hash, "proof": proof})
 
     def report_match(self, sealed_hex, pubkey_hex, block_idx=-1):
         """Report a found key. The private key is a sealed box (hex) produced by
@@ -133,7 +133,9 @@ def main():
     c = sub.add_parser("complete")
     c.add_argument("block_idx", type=int)
     c.add_argument("seconds", type=float)
-    c.add_argument("--keys", type=int, default=0)
+    c.add_argument("p_hash", type=str, help="hash values of the proof keys")
+    c.add_argument("proof", type=str, help="the sealed proof of work")
+    c.add_argument("keys_checked", type=int, default=0)
     m = sub.add_parser("match")
     m.add_argument("sealed", help="sealed private-key blob (hex) from keyhunt-gpu")
     m.add_argument("pubkey")
@@ -155,7 +157,7 @@ def main():
     elif a.cmd == "request":
         print(json.dumps(node.request_block(), indent=2))
     elif a.cmd == "complete":
-        print(json.dumps(node.complete_block(a.block_idx, a.seconds, a.keys), indent=2))
+        print(json.dumps(node.complete_block(a.block_idx, a.seconds, a.keys_checked, a.p_hash, a.keys_checked), indent=2))
     elif a.cmd == "match":
         print(json.dumps(node.report_match(a.sealed, a.pubkey, a.block_idx), indent=2))
     elif a.cmd == "stats":

@@ -10,6 +10,7 @@ coord.json
 planted.json
 found.txt
 state.txt
+checkpoint.txt
 
 # Keep example configs (they have no '.key'/'.pub'/'.db' suffix, so they are safe)
 
